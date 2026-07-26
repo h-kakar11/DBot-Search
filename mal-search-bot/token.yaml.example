@@ -1,7 +1,0 @@
-# Copy this file to token.yaml and fill in your bot's token.
-# token.yaml is git-ignored and should never be committed.
-#
-# Get your token from the Discord Developer Portal:
-# https://discord.com/developers/applications -> Your App -> Bot -> Reset Token
-
-token: "YOUR_DISCORD_BOT_TOKEN_HERE"

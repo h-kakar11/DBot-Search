@@ -1,16 +1,16 @@
-"""Configuration loading for mal-search-bot.
+"""Centralized configuration and environment loading for mal-search-bot.
 
-Loads the Discord bot token from the DISCORD_TOKEN environment variable first,
-falling back to token.yaml. Loads non-secret settings from config.yaml with
-environment variable overrides and sensible defaults.
+All configuration is sourced from environment variables (optionally loaded
+from a local .env file via python-dotenv). No secrets are ever hardcoded.
 """
 from __future__ import annotations
 
 import os
+from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import Path
-from typing import Any, Optional
+from typing import Optional
 
-import yaml
 from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -20,84 +20,95 @@ load_dotenv(BASE_DIR / ".env")
 
 
 class ConfigError(Exception):
-    """Raised when required configuration (e.g. the bot token) is missing."""
+    """Raised when required configuration (e.g. the bot token) is missing or invalid."""
 
 
-def _load_yaml(path: Path) -> dict[str, Any]:
-    if not path.exists():
-        return {}
-    with path.open("r", encoding="utf-8") as fh:
-        data = yaml.safe_load(fh)
-    return data or {}
+def _int_or_none(value: Optional[str]) -> Optional[int]:
+    """Parse an optional environment variable string into an int, or None."""
+    if value is None or value.strip() == "":
+        return None
+    try:
+        return int(value)
+    except ValueError:
+        return None
 
 
-def get_token() -> str:
-    """Return the Discord bot token.
+def _float_env(name: str, default: float) -> float:
+    """Read a float environment variable, falling back to a default."""
+    value = os.getenv(name)
+    if value is None or value.strip() == "":
+        return default
+    try:
+        return float(value)
+    except ValueError:
+        return default
 
-    Resolution order:
-      1. DISCORD_TOKEN environment variable (also populated from .env)
-      2. token.yaml's `token` key
+
+def _int_env(name: str, default: int) -> int:
+    """Read an int environment variable, falling back to a default."""
+    value = os.getenv(name)
+    if value is None or value.strip() == "":
+        return default
+    try:
+        return int(value)
+    except ValueError:
+        return default
+
+
+@dataclass(frozen=True)
+class Settings:
+    """Application settings resolved once at process startup.
+
+    Attributes:
+        discord_token: The bot's Discord token (required, from DISCORD_TOKEN).
+        guild_id: Optional guild ID for fast, guild-scoped slash command sync
+            during development. If unset, commands sync globally.
+        jikan_base_url: Base URL for the Jikan v4 API.
+        rate_limit_per_second: Max Jikan requests allowed per rolling second.
+        rate_limit_per_minute: Max Jikan requests allowed per rolling minute.
+        max_retries: Max retry attempts for Jikan 5xx errors/timeouts.
+        log_level: Root logging level name (e.g. "INFO", "DEBUG").
     """
-    token = os.getenv("DISCORD_TOKEN")
-    if token:
-        return token.strip()
 
-    token_file = BASE_DIR / "token.yaml"
-    data = _load_yaml(token_file)
-    token = data.get("token")
-    if token:
-        return str(token).strip()
+    discord_token: str
+    guild_id: Optional[int]
+    jikan_base_url: str
+    rate_limit_per_second: float
+    rate_limit_per_minute: int
+    max_retries: int
+    log_level: str
 
-    raise ConfigError(
-        "No Discord bot token found. Set the DISCORD_TOKEN environment variable "
-        "(or put it in a .env file), or create token.yaml from token.yaml.example."
+
+def load_settings() -> Settings:
+    """Load and validate application settings from environment variables.
+
+    Raises:
+        ConfigError: If the required DISCORD_TOKEN is missing.
+    """
+    token = os.getenv("DISCORD_TOKEN", "").strip()
+    if not token:
+        raise ConfigError(
+            "DISCORD_TOKEN environment variable is not set. Copy .env.example to .env "
+            "and fill in your bot token, or export DISCORD_TOKEN in your shell."
+        )
+
+    return Settings(
+        discord_token=token,
+        guild_id=_int_or_none(os.getenv("GUILD_ID")),
+        jikan_base_url=os.getenv("JIKAN_BASE_URL", "https://api.jikan.moe/v4"),
+        rate_limit_per_second=_float_env("JIKAN_RATE_LIMIT_PER_SECOND", 3.0),
+        rate_limit_per_minute=_int_env("JIKAN_RATE_LIMIT_PER_MINUTE", 60),
+        max_retries=_int_env("JIKAN_MAX_RETRIES", 3),
+        log_level=os.getenv("LOG_LEVEL", "INFO"),
     )
 
 
-class Config:
-    """Non-secret application settings loaded from config.yaml with env overrides."""
-
-    def __init__(self) -> None:
-        data = _load_yaml(BASE_DIR / "config.yaml")
-
-        self.guild_id: Optional[int] = self._int_or_none(
-            os.getenv("GUILD_ID", data.get("guild_id"))
-        )
-
-        self.jikan_base_url: str = os.getenv(
-            "JIKAN_BASE_URL", data.get("jikan_base_url", "https://api.jikan.moe/v4")
-        )
-
-        self.rate_limit_per_second: float = float(
-            os.getenv(
-                "JIKAN_RATE_LIMIT_PER_SECOND",
-                data.get("rate_limit_per_second", 3),
-            )
-        )
-
-        self.rate_limit_per_minute: int = int(
-            os.getenv(
-                "JIKAN_RATE_LIMIT_PER_MINUTE",
-                data.get("rate_limit_per_minute", 60),
-            )
-        )
-
-        self.max_retries: int = int(
-            os.getenv("JIKAN_MAX_RETRIES", data.get("max_retries", 3))
-        )
-
-        self.log_level: str = os.getenv(
-            "LOG_LEVEL", data.get("log_level", "INFO")
-        )
-
-    @staticmethod
-    def _int_or_none(value: Any) -> Optional[int]:
-        if value in (None, "", "null"):
-            return None
-        try:
-            return int(value)
-        except (TypeError, ValueError):
-            return None
+@lru_cache(maxsize=1)
+def get_settings() -> Settings:
+    """Return the cached, process-wide Settings instance (loaded on first access)."""
+    return load_settings()
 
 
-config = Config()
+
+settings = load_settings()
+

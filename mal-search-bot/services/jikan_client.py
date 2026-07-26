@@ -1,6 +1,6 @@
-"""Async client for the Jikan API (https://docs.api.jikan.moe/).
+"""Async wrapper around the Jikan API (https://docs.api.jikan.moe/).
 
-Provides a rate-limited, retrying HTTP wrapper around the endpoints needed by
+Provides a rate-limited, retrying HTTP client for the endpoints needed by
 mal-search-bot: anime search, manga search, seasonal anime, and full
 anime/manga lookups by ID.
 """
@@ -14,7 +14,7 @@ from typing import Any, Optional
 
 import aiohttp
 
-logger = logging.getLogger("mal_search_bot.jikan")
+logger = logging.getLogger("mal_search_bot.services.jikan_client")
 
 
 class JikanAPIError(Exception):
@@ -24,12 +24,13 @@ class JikanAPIError(Exception):
 class RateLimiter:
     """Leaky-bucket style rate limiter for Jikan's request limits.
 
-    Tracks request timestamps in a rolling window and blocks (via async sleep)
-    until a new request is allowed, respecting both a short-window limit
-    (e.g. 3 req/sec) and a longer rolling-minute limit (e.g. 60 req/min).
+    Tracks request timestamps in rolling windows and awaits until a new
+    request is allowed, respecting both a short-window limit (e.g. 3 req/sec)
+    and a longer rolling-minute limit (e.g. 60 req/min).
     """
 
     def __init__(self, per_second: float = 3, per_minute: int = 60) -> None:
+        """Initialize the limiter with per-second and per-minute request caps."""
         self.per_second = per_second
         self.per_minute = per_minute
         self._second_window: deque[float] = deque()
@@ -37,6 +38,7 @@ class RateLimiter:
         self._lock = asyncio.Lock()
 
     async def acquire(self) -> None:
+        """Block until a new outgoing request is permitted under both limits."""
         async with self._lock:
             while True:
                 now = time.monotonic()
@@ -60,6 +62,7 @@ class RateLimiter:
 
     @staticmethod
     def _evict(window: deque[float], now: float, span: float) -> None:
+        """Drop timestamps older than `span` seconds from the front of `window`."""
         while window and now - window[0] >= span:
             window.popleft()
 
@@ -74,6 +77,7 @@ class JikanClient:
         rate_limit_per_minute: int = 60,
         max_retries: int = 3,
     ) -> None:
+        """Configure the client. Call `start()` before making requests."""
         self.base_url = base_url.rstrip("/")
         self.max_retries = max_retries
         self._rate_limiter = RateLimiter(rate_limit_per_second, rate_limit_per_minute)
@@ -91,6 +95,13 @@ class JikanClient:
             await self._session.close()
 
     async def _request(self, path: str, params: Optional[dict[str, Any]] = None) -> Any:
+        """Perform a rate-limited GET request with 429/5xx retry handling.
+
+        Raises:
+            JikanAPIError: If the session isn't started, the request keeps
+                failing past `max_retries`, or the API returns an unexpected
+                non-2xx/404 status.
+        """
         if self._session is None or self._session.closed:
             raise JikanAPIError("Jikan client session is not started.")
 
@@ -171,14 +182,14 @@ class JikanClient:
                 backoff *= 2
 
     async def search_anime(self, query: str, limit: int = 10) -> list[dict[str, Any]]:
-        """Search for anime by name. Returns a list of result entries."""
+        """Search for anime by name. Returns a list of result entries (possibly empty)."""
         data = await self._request("/anime", params={"q": query, "limit": limit})
         if not data:
             return []
         return data.get("data", [])
 
     async def search_manga(self, query: str, limit: int = 10) -> list[dict[str, Any]]:
-        """Search for manga by name. Returns a list of result entries."""
+        """Search for manga by name. Returns a list of result entries (possibly empty)."""
         data = await self._request("/manga", params={"q": query, "limit": limit})
         if not data:
             return []
@@ -192,14 +203,14 @@ class JikanClient:
         return data.get("data", [])
 
     async def get_full_anime(self, anime_id: int) -> Optional[dict[str, Any]]:
-        """Fetch full details for a single anime by MAL ID."""
+        """Fetch full details for a single anime by MAL ID, or None if not found."""
         data = await self._request(f"/anime/{anime_id}/full")
         if not data:
             return None
         return data.get("data")
 
     async def get_full_manga(self, manga_id: int) -> Optional[dict[str, Any]]:
-        """Fetch full details for a single manga by MAL ID."""
+        """Fetch full details for a single manga by MAL ID, or None if not found."""
         data = await self._request(f"/manga/{manga_id}/full")
         if not data:
             return None

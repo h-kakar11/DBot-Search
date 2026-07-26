@@ -6,7 +6,6 @@ verify_ssl = true
 [packages]
 discord-py = ">=2.3"
 aiohttp = "*"
-pyyaml = "*"
 python-dotenv = "*"
 
 [dev-packages]

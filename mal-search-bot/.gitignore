@@ -1,5 +1,4 @@
 # Secrets — never commit these
-token.yaml
 .env
 
 # Python
