@@ -1,0 +1,19 @@
+# Non-secret settings for mal-search-bot.
+# Copy/edit as needed. Do NOT put the bot token in this file — use token.yaml or .env.
+
+# Set this to your development guild's ID for instant slash-command sync while testing.
+# Leave as null (or remove it) to sync commands globally (can take up to an hour to propagate).
+guild_id: null
+
+# Base URL for the Jikan API (v4). Rarely needs to change.
+jikan_base_url: "https://api.jikan.moe/v4"
+
+# Jikan rate limits: ~3 requests/second, 60 requests/minute.
+rate_limit_per_second: 3
+rate_limit_per_minute: 60
+
+# Max retry attempts for 5xx errors before giving up.
+max_retries: 3
+
+# Logging verbosity: DEBUG, INFO, WARNING, ERROR.
+log_level: "INFO"
