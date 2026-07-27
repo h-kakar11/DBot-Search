@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # mal-search-bot
 
 A standalone Discord bot for searching MyAnimeList content (anime/manga/movies) via
@@ -153,3 +154,7 @@ caught and surfaced as a friendly ephemeral message instead of hanging the inter
 Since this is a separate application with its own token, `Pipfile`, and process, you can
 run it in parallel with `mal-notify-bot` (e.g. in a separate terminal, separate Docker
 container, or separate systemd service) without any shared state or port conflicts.
+=======
+# DBot-Search
+Discord bot created for servers in discord to use commands to search for anime and more all inside the server
+>>>>>>> bf3dc9f4d72c2cbb89fe8b7418eaa0cf5a3a2736
