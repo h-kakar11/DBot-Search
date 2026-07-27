@@ -1,0 +1,5 @@
+# Copy this file to token.yaml and fill in your bot token.
+# token.yaml is git-ignored, so your real token will never be committed.
+#
+# You only need ONE of token.yaml or .env, not both.
+token: "YOUR_DISCORD_BOT_TOKEN_HERE"

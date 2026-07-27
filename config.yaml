@@ -1,0 +1,24 @@
+# Non-secret configuration for mal-search-bot.
+# Any of these can be overridden with an environment variable of the same
+# name in UPPER_CASE (see .env.example). Env vars always win over this file.
+
+# Optional: restrict slash command sync to a single guild for instant
+# updates during development. Leave null for global sync (can take up to
+# an hour to propagate to all servers the bot is in).
+guild_id: null
+
+# Channel used for "newly announced / upcoming anime" notifications.
+# Prefer notify_channel_id (exact channel, works even if renamed) when
+# possible; notify_channel_name is used as a fallback lookup by channel
+# name in each guild the bot is a member of.
+notify_channel_id: null
+notify_channel_name: "anime-announcements"
+
+# Channel used for "new episode / release" notifications for watchlisted
+# anime. Leave both blank to reuse the notify channel settings above.
+release_channel_id: null
+release_channel_name: null
+
+# How often (in hours) each background notification loop polls Jikan.
+upcoming_poll_interval_hours: 6
+release_poll_interval_hours: 24
